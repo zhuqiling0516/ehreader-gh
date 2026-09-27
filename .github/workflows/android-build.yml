@@ -26,7 +26,9 @@ permissions:
 
 jobs:
   build-apk:
-    runs-on: ubuntu-latest
+    # 22.04：python-for-android 2024.01.21 在 22.04 上验证最充分；
+    # latest 已迁到 24.04，gcc/autoconf 版本差异容易让老 recipe 编译失败
+    runs-on: ubuntu-22.04
     timeout-minutes: 180
 
     steps:
@@ -48,7 +50,9 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             git zip unzip openjdk-17-jdk autoconf automake libtool libltdl-dev \
-            pkg-config zlib1g-dev libncurses5-dev libncursesw5-dev libtinfo6 \
+            pkg-config zlib1g-dev libbz2-dev libsqlite3-dev libreadline-dev \
+            libgdbm-dev liblzma-dev uuid-dev libjpeg-dev libpng-dev \
+            libncurses5-dev libncursesw5-dev libtinfo6 \
             cmake libffi-dev libssl-dev ccache
 
       - name: Install buildozer
@@ -83,10 +87,36 @@ jobs:
 
       - name: Build debug APK
         run: |
+          set -o pipefail
           cd mobile
           # android.accept_sdk_license = True 已写在 buildozer.spec 里，
           # 否则 CI 中 SDK 许可交互会让构建卡住
-          buildozer -v android debug
+          buildozer -v android debug 2>&1 | tee ../buildozer.log
+
+      # 失败时把日志尾部打成 annotation。
+      # 原因：GitHub 的 job 日志接口（/actions/jobs/{id}/logs）必须登录才能读，
+      # 但 check-runs 的 annotations 对公开仓库是免登录可读的 —— 这样无人值守时
+      # 也能直接定位到真实报错。
+      - name: Report failure tail
+        if: failure()
+        run: |
+          echo "===== buildozer.log 末尾 40 行 ====="
+          tail -n 40 buildozer.log || true
+          echo "===== 命中 error/failed/traceback 的行 ====="
+          grep -n -i -E "error|failed|fatal|traceback|exception|cannot|no such file|not found" buildozer.log | tail -n 30 || true
+          tail_msg=$(tail -n 25 buildozer.log 2>/dev/null | tr '\n' '~' | tr -d '\r' | cut -c1-6000)
+          err_msg=$(grep -i -E "error|failed|fatal|traceback|exception|cannot|no such file|not found" buildozer.log 2>/dev/null | tail -n 20 | tr '\n' '~' | tr -d '\r' | cut -c1-6000)
+          echo "::error title=BUILD_TAIL::$tail_msg"
+          echo "::error title=BUILD_ERRORS::$err_msg"
+
+      - name: Upload build log
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: buildozer-log
+          path: buildozer.log
+          if-no-files-found: ignore
+          retention-days: 7
 
       - name: Show APK
         run: ls -lh mobile/bin/
