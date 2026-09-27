@@ -100,12 +100,20 @@ jobs:
       - name: Report failure tail
         if: failure()
         run: |
-          echo "===== buildozer.log 末尾 40 行 ====="
-          tail -n 40 buildozer.log || true
-          echo "===== 命中 error/failed/traceback 的行 ====="
-          grep -n -i -E "error|failed|fatal|traceback|exception|cannot|no such file|not found" buildozer.log | tail -n 30 || true
-          tail_msg=$(tail -n 25 buildozer.log 2>/dev/null | tr '\n' '~' | tr -d '\r' | cut -c1-6000)
-          err_msg=$(grep -i -E "error|failed|fatal|traceback|exception|cannot|no such file|not found" buildozer.log 2>/dev/null | tail -n 20 | tr '\n' '~' | tr -d '\r' | cut -c1-6000)
+          echo "===== 环境 ====="
+          python -V || true
+          pip -V || true
+          grep -n -i -E "python-for-android|Recommended NDK|p4a version" buildozer.log | head -n 5 || true
+          echo "===== 第一个 Traceback 及其上下文 ====="
+          grep -n -A 25 -m 1 "Traceback (most recent call last)" buildozer.log || true
+          echo "===== 末尾 50 行 ====="
+          tail -n 50 buildozer.log || true
+          # 打成 annotation：GitHub 的 job 日志接口必须登录才能读，
+          # 但 check-runs 的 annotations 对公开仓库免登录可读。
+          tb=$(grep -A 25 -m 1 "Traceback (most recent call last)" buildozer.log 2>/dev/null | tr '\n' '~' | tr -d '\r' | cut -c1-6000)
+          tail_msg=$(tail -n 30 buildozer.log 2>/dev/null | tr '\n' '~' | tr -d '\r' | cut -c1-6000)
+          err_msg=$(grep -i -E "error|failed|fatal|exception|cannot|no such file|not found" buildozer.log 2>/dev/null | tail -n 20 | tr '\n' '~' | tr -d '\r' | cut -c1-6000)
+          echo "::error title=BUILD_TRACEBACK::$tb"
           echo "::error title=BUILD_TAIL::$tail_msg"
           echo "::error title=BUILD_ERRORS::$err_msg"
 

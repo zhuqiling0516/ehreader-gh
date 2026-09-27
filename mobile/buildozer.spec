@@ -35,6 +35,14 @@ android.release_artifact = apk
 
 p4a.bootstrap = sdl2
 
+# 钉住 python-for-android 版本：buildozer 默认 git clone p4a 的 develop 分支，
+# 现在那套（2026.x）用 Python 3.14 建构建 venv，会出现
+#   ImportError: cannot import name 'BuildDependencyInstallError'
+#   from 'pip._internal.exceptions'
+# v2024.01.21 是跟 kivy 2.3.1 / NDK 25b / Python 3.11 搭配最成熟的组合，
+# 它自己声明的推荐 NDK 就是 25b。
+p4a.branch = v2024.01.21
+
 [buildozer]
 log_level = 2
 warn_on_root = 1
