@@ -1,0 +1,15 @@
+# 构建产物与临时文件
+bin/
+.buildozer/
+.pytest_cache/
+__pycache__/
+*.pyc
+
+# 构建脚本生成的共享模块副本
+mobile/vendor/
+
+# 运行/自测产生
+mobile_store.json
+selftest_report.txt
+ui_progress.log
+*.log

@@ -1,0 +1,12 @@
+# 打包产物与临时文件
+vendor/
+bin/
+.buildozer/
+__pycache__/
+*.pyc
+
+# 运行/自测产生
+mobile_store.json
+selftest_report.txt
+ui_progress.log
+_*.log

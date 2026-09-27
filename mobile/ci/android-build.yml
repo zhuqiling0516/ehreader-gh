@@ -1,0 +1,66 @@
+name: Build Android APK
+
+# 用法：把本文件复制到仓库的 .github/workflows/android-build.yml，push 后
+# 在 Actions 页面 Run workflow，构建完在 Artifacts 里下载 ehreader-apk。
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, master]
+    paths:
+      - 'mobile/**'
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y git zip unzip openjdk-17-jdk autoconf libtool \
+            pkg-config zlib1g-dev libncurses5-dev libncursesw5-dev libtinfo6 \
+            cmake libffi-dev libssl-dev
+
+      - name: Install buildozer
+        run: |
+          pip install --upgrade pip
+          pip install buildozer cython
+
+      - name: Cache buildozer
+        uses: actions/cache@v4
+        with:
+          path: |
+            mobile/.buildozer
+            ~/.buildozer
+          key: buildozer-${{ runner.os }}-${{ hashFiles('mobile/buildozer.spec') }}
+          restore-keys: |
+            buildozer-${{ runner.os }}-
+
+      - name: Prepare vendor sources
+        run: |
+          cd mobile
+          mkdir -p vendor
+          cp ../pages.py ../browse.py vendor/
+
+      - name: Syntax check
+        run: |
+          cd mobile
+          python -m py_compile ehapi.py mobui.py main.py selftest.py
+
+      - name: Build debug APK
+        run: |
+          cd mobile
+          buildozer -v android debug
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: ehreader-apk
+          path: mobile/bin/*.apk
+          if-no-files-found: error
