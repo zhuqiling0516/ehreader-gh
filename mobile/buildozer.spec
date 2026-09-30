@@ -13,7 +13,12 @@ source.exclude_patterns = selftest_report.txt, ui_progress.log, *_test.py, _*pro
 version = 1.0.0
 
 # python-for-android 需要的依赖（requests 用于网络，pillow 负责解码 webp 等）
-requirements = python3,kivy==2.3.1,requests,urllib3,idna,charset-normalizer,certifi,pillow
+# filetype 是 Kivy 2.3.1 的声明依赖：kivy/core/image/__init__.py 在 import 阶段就
+# `import filetype`，而 p4a 的 kivy recipe 是直接用 setup.py 编译安装的、不带依赖，
+# 漏了它 App 一进 `import kivy.app` 就会
+#   ModuleNotFoundError: No module named 'filetype'
+# 然后进程秒退（真机上表现为点开闪一下就没）。纯 Python 包，pip 能装。
+requirements = python3,kivy==2.3.1,requests,urllib3,idna,charset-normalizer,certifi,pillow,filetype
 
 orientation = all
 fullscreen = 1

@@ -211,6 +211,15 @@ class LocalPage:
             source.load()
             return source
 
+    def fetch_bytes(self) -> bytes:
+        """原始文件字节（webp 交给上层用 SDL2 解码：p4a 的 Pillow 没编 libwebp）"""
+        self.error = None
+        try:
+            return Path(self.path).read_bytes()
+        except Exception as exc:
+            self.error = str(exc) or exc.__class__.__name__
+            raise
+
 
 class OnlinePage:
     """在线画廊中的一页"""
@@ -250,6 +259,21 @@ class OnlinePage:
                                          max(1, int(box_h * scale))))
                 source.load()
                 return source
+        except Exception as exc:
+            self.error = str(exc) or exc.__class__.__name__
+            raise
+
+    def fetch_bytes(self) -> bytes:
+        """原图字节流。
+
+        站点正文图多是 webp，而 p4a 里的 Pillow 没有编译 libwebp（设备上 PIL 目录
+        只有 _imaging*.so，没有 _webp.so），走上面的 fetch() 会抛
+        "image file could not be identified because WEBP support not installed" → 白页。
+        所以移动端改从这里取原始字节，由上层用 SDL2（libSDL2_image 带 webp）解码。
+        """
+        self.error = None
+        try:
+            return self.gallery.fetch_bytes(self.image_url(), referer=self.viewer_url)
         except Exception as exc:
             self.error = str(exc) or exc.__class__.__name__
             raise
