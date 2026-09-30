@@ -93,16 +93,17 @@ else:
 # 默认关闭 —— 它每次触摸都要写文件 + 走一遍控件树，是卡顿的来源之一。
 # 需要时在设备上造个空文件即可打开，不用重新打包：
 #     adb shell run-as org.ehreader.ehreader touch files/debug_ui
-def _debug_flag() -> bool:
+def _flag(name: str) -> bool:
+    """设备上存在 files/<name> 就返回 True（不用重新打包就能开关调试功能）"""
     try:
         import os
         return os.path.exists(os.path.join(
-            os.environ.get('ANDROID_PRIVATE') or '.', 'debug_ui'))
+            os.environ.get('ANDROID_PRIVATE') or '.', name))
     except Exception:                           # noqa: BLE001
         return False
 
 
-DEBUG_UI = _debug_flag()
+DEBUG_UI = _flag('debug_ui')
 _DBG_PATH = None
 
 
@@ -883,6 +884,8 @@ class BrowseScreen(Screen):
                 tuple(round(v) for v in widget.size), rect))
         self.keyword.bind(focus=lambda widget, value: _dbg('keyword focus ->', value))
         _dbg('softinput_mode=%s' % getattr(Window, 'softinput_mode', 'n/a'))
+        if _flag('debug_input'):
+            self.dump_keyword()
         try:
             _dbg('Window.children=%s' % [
                 (type(c).__name__, tuple(round(v) for v in c.pos),
@@ -895,6 +898,63 @@ class BrowseScreen(Screen):
                 for s in self.app.sm.screens])
         except Exception as exc:                # noqa: BLE001
             _dbg('dump err', exc)
+
+    def dump_keyword(self) -> None:
+        """临时排查「搜索框不显示文字」：把 TextInput 的内部状态全打出来。
+
+        设备上 touch files/debug_input 触发（配合 debug_ui 一起看）。
+        """
+        field = self.keyword
+        try:
+            _dbg('kw.text=%r hint=%r' % (field.text, field.hint_text))
+            _dbg('kw.pos=%s size=%s top=%s y=%s' % (
+                tuple(round(v) for v in field.pos),
+                tuple(round(v) for v in field.size),
+                round(field.top), round(field.y)))
+            _dbg('kw.padding=%s font_name=%r font_size=%s scroll=(%s, %s)' % (
+                list(field.padding), field.font_name, field.font_size,
+                field.scroll_x, field.scroll_y))
+            _dbg('kw.focus=%s disabled=%s opacity=%s multiline=%s do_wrap=%s' % (
+                field.focus, field.disabled, field.opacity, field.multiline,
+                field.do_wrap))
+            _dbg('kw._lines=%r' % (getattr(field, '_lines', None),))
+            _dbg('kw.line_height=%s line_spacing=%s halign=%s' % (
+                field.line_height, field.line_spacing, field.halign))
+            for name in ('_lines_labels', '_hint_text_labels'):
+                labels = getattr(field, name, None) or []
+                _dbg('kw.%s -> %s' % (name, [
+                    (getattr(lbl, 'text', None)[:12] if getattr(lbl, 'text', None) else None,
+                     tuple(round(v) for v in lbl.size),
+                     None if lbl.texture is None else tuple(lbl.texture.size),
+                     getattr(lbl, 'font_name', None))
+                    for lbl in labels]))
+            for name in ('_lines_rects', '_hint_text_rects'):
+                rects = getattr(field, name, None) or []
+                _dbg('kw.%s -> %s' % (name, [
+                    (tuple(round(v) for v in rect.pos), tuple(round(v) for v in rect.size),
+                     None if rect.texture is None else tuple(rect.texture.size))
+                    for rect in rects]))
+            _dbg('kw.canvas_children=%s' % [
+                (type(child).__name__,
+                 tuple(round(v) for v in getattr(child, 'size', (0, 0))),
+                 getattr(child, 'group', None))
+                for child in field.canvas.children])
+            for group in ('before', 'after'):
+                bag = getattr(field.canvas, group, None)
+                items = []
+                for child in (bag.children if bag is not None else []):
+                    info = type(child).__name__
+                    if hasattr(child, 'rgba'):
+                        info += ' rgba=%s' % (tuple(round(v, 2) for v in child.rgba),)
+                    if hasattr(child, 'source'):
+                        info += ' source=%r' % (child.source,)
+                    if hasattr(child, 'texture') and child.texture is not None:
+                        info += ' tex=%s' % (tuple(child.texture.size),)
+                    items.append(info)
+                _dbg('kw.canvas.%s -> %s' % (group, items))
+            _dbg('kw.visible_lines_range=%s' % (getattr(field, '_visible_lines_range', None),))
+        except Exception as exc:                # noqa: BLE001
+            _dbg('dump_keyword err', repr(exc))
 
     def on_touch_down(self, touch):
         if DEBUG_UI:

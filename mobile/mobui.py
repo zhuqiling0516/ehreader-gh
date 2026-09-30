@@ -158,6 +158,29 @@ def flat_input(field=None, **kwargs):
     kwargs.setdefault('padding', (dp(10), dp(8)))
     field = TextInput(**kwargs) if field is None else field
     paint_round(field, THEME['field'], dp(8))
+    # 关键：paint_round 往 canvas.before 里追加了一个「输入框底色」的 Color 指令。
+    # 而 Kivy 的 <TextInput> 样式规则（kivy/data/style.kv）是把**文字颜色**放在
+    # canvas.before 里的，文字矩形却由 _update_graphics() 加到主 canvas：
+    #     canvas.before:  Color(rgba: hint_text_color if not text else foreground_color)
+    #     canvas:         Rectangle(texture: 文字纹理)
+    # canvas.before 会在主 canvas 之前立刻生效，所以底色那条 Color 一追加进去，
+    # 就把文字颜色顶掉了 —— 文字被画成和输入框底色一模一样，看上去就是
+    # 「输入框里什么都不显示」（实测那块区域只有背景色 + 圆角抗锯齿，没有一个文字像素）。
+    # 所以在底色之后补回一条文字颜色，并跟随内容/焦点/禁用状态同步。
+    with field.canvas.before:
+        text_color = Color(*THEME['dim'])
+
+    def _sync_text_color(*_args):
+        if field.disabled:
+            text_color.rgba = (0.45, 0.47, 0.50, 0.5)
+        elif field.text:
+            text_color.rgba = THEME['text']
+        else:
+            text_color.rgba = THEME['dim']
+
+    field.bind(text=_sync_text_color, focus=_sync_text_color,
+               disabled=_sync_text_color)
+    _sync_text_color()
     return field
 
 
